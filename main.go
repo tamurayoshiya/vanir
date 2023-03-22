@@ -1,18 +1,20 @@
 package main
 
 import (
-	"app/bcrypt"
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/xwb1989/sqlparser"
-	"gopkg.in/alecthomas/kingpin.v2"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 	"text/template"
+
+	"vanir/bcrypt"
+
+	kingpin "github.com/alecthomas/kingpin/v2"
+	"github.com/xwb1989/sqlparser"
+	"gopkg.in/yaml.v2"
 )
 
 var version string
@@ -94,7 +96,7 @@ func handleLine(line string, configData map[string]map[string]*template.Template
 	}
 
 	insert := tree.(*sqlparser.Insert)
-	tableName := string(insert.Table.Name)
+	tableName := insert.Table.Name.String()
 	fmt.Fprintf(os.Stderr, "Masking `%s`...\n", tableName)
 	_, present := configData[tableName]
 
@@ -104,30 +106,30 @@ func handleLine(line string, configData map[string]map[string]*template.Template
 
 	columnNames := make([]string, len(insert.Columns))
 	for i, column := range insert.Columns {
-		columnNames[i] = string(column.(*sqlparser.NonStarExpr).Expr.(*sqlparser.ColName).Name)
+		columnNames[i] = column.String()
 	}
 
-	for i, row := range insert.Rows.(sqlparser.Values) {
-		for j, col := range row.(sqlparser.ValTuple) {
+	for _, row := range insert.Rows.(sqlparser.Values) {
+		for j, col := range row {
 			tmpl, present := configData[tableName][columnNames[j]]
 			if !present {
 				continue
 			}
 			var buf bytes.Buffer
-
-			switch val := col.(type) {
+			val := col.(*sqlparser.SQLVal)
+			switch val.Type {
 			case sqlparser.StrVal:
-				err = tmpl.Execute(&buf, &TemplateValue{Raw: string(val), Salt: string(salt)})
+				err = tmpl.Execute(&buf, &TemplateValue{Raw: string(val.Val), Salt: string(salt)})
 				if err != nil {
 					log.Fatal(err)
 				}
-				insert.Rows.(sqlparser.Values)[i].(sqlparser.ValTuple)[j] = sqlparser.StrVal(buf.Bytes())
-			case sqlparser.NumVal:
-				err = tmpl.Execute(&buf, &TemplateValue{Raw: string(val), Salt: string(salt)})
+				row[j] = sqlparser.NewStrVal(buf.Bytes())
+			case sqlparser.IntVal:
+				err = tmpl.Execute(&buf, &TemplateValue{Raw: string(val.Val), Salt: string(salt)})
 				if err != nil {
 					log.Fatal(err)
 				}
-				insert.Rows.(sqlparser.Values)[i].(sqlparser.ValTuple)[j] = sqlparser.NumVal(buf.Bytes())
+				row[j] = sqlparser.NewIntVal(buf.Bytes())
 			}
 		}
 	}
