@@ -116,24 +116,29 @@ func handleLine(line string, configData map[string]map[string]*template.Template
 				continue
 			}
 			var buf bytes.Buffer
-			val := col.(*sqlparser.SQLVal)
-			switch val.Type {
-			case sqlparser.StrVal:
-				err = tmpl.Execute(&buf, &TemplateValue{Raw: string(val.Val), Salt: string(salt)})
-				if err != nil {
-					log.Fatal(err)
-				}
-				row[j] = sqlparser.NewStrVal(buf.Bytes())
-			case sqlparser.IntVal:
-				err = tmpl.Execute(&buf, &TemplateValue{Raw: string(val.Val), Salt: string(salt)})
-				if err != nil {
-					log.Fatal(err)
-				}
-				row[j] = sqlparser.NewIntVal(buf.Bytes())
-			}
-		}
-	}
-	return fmt.Sprintf("%s;", sqlparser.String(insert))
+			switch col.(type) {
+        　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　case *sqlparser.NullVal:
+            　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　row[j] = col
+        　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　case *sqlparser.SQLVal:
+            　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　val := col.(*sqlparser.SQLVal)
+            　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　switch val.Type {
+            　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　case sqlparser.StrVal:
+                　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　err = tmpl.Execute(&buf, &TemplateValue{Raw: string(val.Val), Salt: string(salt)})
+                　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　if err != nil {
+                    　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　log.Fatal(err)
+                　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　}
+                　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　row[j] = sqlparser.NewStrVal(buf.Bytes())
+            　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　case sqlparser.IntVal:
+                　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　err = tmpl.Execute(&buf, &TemplateValue{Raw: string(val.Val), Salt: string(salt)})
+                　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　if err != nil {
+                    　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　log.Fatal(err)
+                　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　}　
+                　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　row[j] = sqlparser.NewIntVal(buf.Bytes())
+            　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　}
+        　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　}
+    　　　　　　　　　　　　　　　　　　　　　　　　　　　　}
+　　　　　　　　　　　　　　　　　}
+　　　　　　　　　　　　　　　　　return fmt.Sprintf("%s;", sqlparser.String(insert))
 }
 
 func main() {
